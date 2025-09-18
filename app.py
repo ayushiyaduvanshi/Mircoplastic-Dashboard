@@ -25,7 +25,7 @@ def classify_shape(cnt):
     hull_area = cv2.contourArea(hull)
     solidity = (area / hull_area) if hull_area > 0 else 0
 
-    # Thresholds (tuned for simplicity; adjust if needed)
+    # Thresholds
     if aspect_ratio >= 5.0 and solidity > 0.2 and circularity < 0.8:
         label = "fiber"
     elif circularity >= 0.8 and solidity > 0.9:
@@ -46,14 +46,12 @@ def eq_diameter_um(area_px, um_per_px):
 
 
 def detect_blue_mask(image_bgr):
-    """Return binary mask for 'blue' in HSV."""
+    """Return binary mask for blue in HSV."""
     hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
-    # Broad blue range (tweak if needed)
     lower_blue = np.array([90, 50, 50], dtype=np.uint8)
     upper_blue = np.array([130, 255, 255], dtype=np.uint8)
     mask = cv2.inRange(hsv, lower_blue, upper_blue)
 
-    # Clean up small noise
     kernel = np.ones((3, 3), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
@@ -65,26 +63,27 @@ def annotate(image_bgr, contours, meta_list):
     for cnt, meta in zip(contours, meta_list):
         x, y, w, h = cv2.boundingRect(cnt)
         cv2.rectangle(out, (x, y), (x+w, y+h), (0, 255, 0), 2)
-        label = f"{meta['shape']} | {int(round(meta['size_um']))}µm"
-        cv2.putText(out, label, (x, max(15, y-6)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+        label = f"{meta['shape']} | {int(round(meta['size_um']))} μm"
+        cv2.putText(out, label, (x, max(15, y-6)), cv2.FONT_HERSHEY_SIMPLEX, 
+                    0.5, (255, 0, 0), 2)
     return cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
 
 
 # -------------------------
-# UI (no sidebar)
+# UI
 # -------------------------
 st.set_page_config(page_title="Blue Microplastic Detector — Size & Shape", layout="wide")
 st.title("🔵 Microplastic Detection (Blue) — Size & Shape")
 
 um_per_px = st.number_input(
-    "Microns per pixel (calibration from your microscope scale bar)",
-    min_value=0.0001, value=1.50, step=0.01, help="Example: if 100 µm = 80 px, then µm/px = 100/80 = 1.25"
+    "Microns per pixel (calibration from microscope scale bar, in μm/px)",
+    min_value=0.0001, value=1.50, step=0.01
 )
 
 uploaded_zip = st.file_uploader("Upload a ZIP of microscope images (.jpg/.jpeg/.png)", type=["zip"])
 
 if uploaded_zip is not None:
-    # Prepare temp dir
+    # Temp folder
     extract_dir = "temp_images"
     os.makedirs(extract_dir, exist_ok=True)
     for f in os.listdir(extract_dir):
@@ -127,7 +126,7 @@ if uploaded_zip is not None:
                 "image": image_file,
                 "particle_id": idx,
                 "shape": shape,
-                "size_um": round(size_um, 2),
+                "size (μm)": round(size_um, 2),
                 "aspect_ratio": round(ar, 3),
                 "circularity": round(circ, 3),
                 "solidity": round(sol, 3),
@@ -141,7 +140,7 @@ if uploaded_zip is not None:
         st.image(annotated, caption=f"{image_file} — blue MPs: {len(meta_list)}", use_column_width=True)
 
     # -------------------------
-    # Final Summary (bottom)
+    # Final Summary
     # -------------------------
     st.markdown("---")
     st.header("📊 Summary (All Images)")
@@ -150,15 +149,8 @@ if uploaded_zip is not None:
 
     if per_particle_rows:
         df = pd.DataFrame(per_particle_rows)
-        # Shape distribution
-        shape_counts = df["shape"].value_counts().reset_index()
-        shape_counts.columns = ["shape", "count"]
-
         st.subheader("Per-Particle Details")
         st.dataframe(df, use_container_width=True)
-
-        st.subheader("Shape Distribution")
-        st.dataframe(shape_counts, use_container_width=True)
 
         # CSV download
         csv_buf = io.StringIO()
@@ -170,14 +162,12 @@ if uploaded_zip is not None:
             mime="text/csv"
         )
     else:
-        st.info("No blue particles detected in the uploaded images.")
+        st.info("No blue particles detected.")
 
-    # Cleanup (optional)
+    # Cleanup
     try:
         for f in os.listdir(extract_dir):
             os.remove(os.path.join(extract_dir, f))
         os.rmdir(extract_dir)
     except:
         pass
-else:
-    st.info("Upload a ZIP to run detection. Enter the correct µm/px calibration for accurate sizes.")
