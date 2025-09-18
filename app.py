@@ -306,4 +306,4 @@ if uploaded_zip is not None:
         pass
 
 else:
-    st.info("Upload a ZIP of microscope images to begin. Tip: set microns-per-pixel from your scale bar for accurate size."
+    st.info("Upload a ZIP of microscope images to begin. Tip: set microns-per-pixel from your scale bar for accurate size.")
