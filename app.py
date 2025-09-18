@@ -39,6 +39,7 @@ def classify_shape(cnt):
 
 
 def eq_diameter_um(area_px, um_per_px):
+    """Equivalent diameter (μm) from contour area (px²) using d = sqrt(4A/π) * μm/px."""
     if area_px <= 0:
         return 0.0
     d_px = np.sqrt(4 * area_px / np.pi)
@@ -52,6 +53,7 @@ def detect_blue_mask(image_bgr):
     upper_blue = np.array([130, 255, 255], dtype=np.uint8)
     mask = cv2.inRange(hsv, lower_blue, upper_blue)
 
+    # Clean small noise
     kernel = np.ones((3, 3), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
@@ -59,12 +61,13 @@ def detect_blue_mask(image_bgr):
 
 
 def annotate(image_bgr, contours, meta_list):
+    """Draw boxes + 'shape | N micrometer' labels on the image."""
     out = image_bgr.copy()
     for cnt, meta in zip(contours, meta_list):
         x, y, w, h = cv2.boundingRect(cnt)
         cv2.rectangle(out, (x, y), (x+w, y+h), (0, 255, 0), 2)
-        label = f"{meta['shape']} | {int(round(meta['size_um']))} μm"
-        cv2.putText(out, label, (x, max(15, y-6)), cv2.FONT_HERSHEY_SIMPLEX, 
+        label = f"{meta['shape']} | {int(round(meta['size_um']))} micrometer"
+        cv2.putText(out, label, (x, max(15, y-6)), cv2.FONT_HERSHEY_SIMPLEX,
                     0.5, (255, 0, 0), 2)
     return cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
 
@@ -114,7 +117,7 @@ if uploaded_zip is not None:
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         meta_list = []
-        for idx, cnt in enumerate(contours, start=1):
+        for cnt in contours:
             area_px = cv2.contourArea(cnt)
             if area_px <= 0:
                 continue
@@ -124,7 +127,6 @@ if uploaded_zip is not None:
 
             per_particle_rows.append({
                 "image": image_file,
-                "particle_id": idx,
                 "shape": shape,
                 "size (μm)": round(size_um, 2),
                 "aspect_ratio": round(ar, 3),
@@ -171,3 +173,5 @@ if uploaded_zip is not None:
         os.rmdir(extract_dir)
     except:
         pass
+else:
+    st.info("Upload a ZIP to run detection. Enter the correct μm/px calibration for accurate sizes.")
